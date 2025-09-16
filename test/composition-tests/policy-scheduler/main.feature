@@ -18,16 +18,26 @@ Feature: Policy scheduler composition
 
   Background:
     Given input claim xr.yaml
-    # following step is optional: default input composition is composition.yaml 
+    # following step is optional: default input composition is composition.yaml
     And input composition composition.yaml
     # following step is optional: default input functions is functions.yaml
     And input functions functions.yaml
     Then check that no resources are provisioning
 
   @normal
-  Scenario: TODO
-
+  Scenario: render composition and verify generated resources for schedules
     # render 1
     When crossplane renders the composition
-    Then check that no resources are provisioning
-    # TODO follow the example from service-account.feature and write similar steps to test the policy scheduler composition
+    Then check that 6 resources are provisioning and they are
+      | resource-name                     |
+      | role-app-1                        |
+      | role-app-2                        |
+      | role-app-1-attach-0               |
+      | role-app-1-detach-0               |
+      | role-app-2-attach-1               |
+      | role-app-2-detach-1               |
+    # verify that one of the CronOperation schedules match the input times
+    Then check that resource role-app-1-attach-0 has parameters
+      | schedule | "2023-01-01T00:00:00Z" |
+    Then check that resource role-app-1-detach-0 has parameters
+      | schedule | "2023-12-31T23:59:59Z" |
