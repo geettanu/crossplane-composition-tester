@@ -1,0 +1,27 @@
+# requirements.txt for crossplane-composition-tester
+
+# BDD testing framework
+behave==1.2.6
+
+# dict subclass with utility methods (used in utils.py)
+python-benedict>=0.33.2
+
+# YAML parsing
+PyYAML>=6.0
+
+# JSONPath expressions (used in resource checking)
+jsonpath-ng>=1.5.3
+
+# Utilities for JSON
+simplejson>=3.19.2
+
+# Date/time handling (schedules, parsing)
+python-dateutil>=2.9.0
+
+# Deep difference comparison for test assertions
+deepdiff>=6.7.1
+
+# Kubernetes client (sometimes needed if repo interacts with manifests)
+kubernetes>=29.0.0
+
+PyHamcrest>=2.1.0

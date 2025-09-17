@@ -12,114 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-apiVersion: apiextensions.crossplane.io/v1
-kind: Composition
+
+
+{{- range $i, $s := .spec.schedules }}
+---
+apiVersion: example.com/v1
+kind: Role
 metadata:
-  name: xpolicyscheduler.aws.example.com
+  name: {{ $s.roleName }}
+spec: {}
+---
+apiVersion: example.com/v1
+kind: Attach
+metadata:
+  name: {{ printf "%s-attach-%d" $s.roleName $i }}
 spec:
-  compositeTypeRef:
-    apiVersion: policyscheduler.example.com/v1alpha1
-    kind: XPolicyScheduler
-  mode: Pipeline
-  pipeline:
-  - step: environmentConfigs
-    functionRef:
-      name: function-environment-configs
-    input:
-      apiVersion: environmentconfigs.fn.crossplane.io/v1beta1
-      kind: Input
-      spec:
-        environmentConfigs:
-        - type: Reference
-          ref:
-            name: envconfig
-  - functionRef:
-      name: function-go-templating
-    step: sample-step-1
-    input:
-      apiVersion: gotemplating.fn.crossplane.io/v1beta1
-      kind: GoTemplate
-      source: Inline
-      inline:
-        template: |-
-          {{- /*
-              This Go template iterates over .spec.schedules and emits:
-                1) an iam.aws.crossplane.io/v1beta1 Role for each schedule.roleName
-                2) a ops.crossplane.io/v1alpha1 CronOperation to ATTACH the policy at scheduleFrom
-                3) a ops.crossplane.io/v1alpha1 CronOperation to DETACH the policy at scheduleUntil
-              Note: CronOperation.schedule is rendered here as the raw timestamp strings from the claim;
-              the tests will assert those values are present in the rendered CronOperation resource.
-          */ -}}
-          {{- $cr := . -}}
-          {{- range $i, $s := .spec.schedules }}
-          ---
-          apiVersion: iam.aws.crossplane.io/v1beta1
-          kind: Role
-          metadata:
-            name: {{ $s.roleName }}
-          spec:
-            forProvider:
-              roleName: {{ $s.roleName | quote }}
-              assumeRolePolicyDocument: |
-                {
-                  "Version": "2012-10-17",
-                  "Statement": [
-                    {
-                      "Effect": "Allow",
-                      "Principal": { "Service": "ec2.amazonaws.com" },
-                      "Action": "sts:AssumeRole"
-                    }
-                  ]
-                }
-          ---
-          apiVersion: ops.crossplane.io/v1alpha1
-          kind: CronOperation
-          metadata:
-            name: {{ printf "%s-attach-%d" $s.roleName $i }}
-          spec:
-            schedule: {{ $s.scheduleFrom | quote }}
-            concurrencyPolicy: Forbid
-            successfulHistoryLimit: 1
-            failedHistoryLimit: 1
-            operationTemplate:
-              spec:
-                mode: Pipeline
-                pipeline:
-                - step: attach
-                  functionRef:
-                    name: function-iam-attach-policy
-                  input:
-                    apiVersion: iam.aws.crossplane.io/v1beta1
-                    kind: RolePolicyAttachment
-                    spec:
-                      forProvider:
-                        roleName: {{ $s.roleName | quote }}
-                        policyArn: {{ $s.policyArn | quote }}
-          ---
-          apiVersion: ops.crossplane.io/v1alpha1
-          kind: CronOperation
-          metadata:
-            name: {{ printf "%s-detach-%d" $s.roleName $i }}
-          spec:
-            schedule: {{ $s.scheduleUntil | quote }}
-            concurrencyPolicy: Forbid
-            successfulHistoryLimit: 1
-            failedHistoryLimit: 1
-            operationTemplate:
-              spec:
-                mode: Pipeline
-                pipeline:
-                - step: detach
-                  functionRef:
-                    name: function-iam-detach-policy
-                  input:
-                    apiVersion: iam.aws.crossplane.io/v1beta1
-                    kind: RolePolicyAttachment
-                    spec:
-                      forProvider:
-                        roleName: {{ $s.roleName | quote }}
-                        policyArn: {{ $s.policyArn | quote }}
-          {{- end }}
-  - step: automatically-detect-ready-composed-resources
-    functionRef:
-      name: function-auto-ready
+  schedule: {{ $s.scheduleFrom | quote }}
+---
+apiVersion: example.com/v1
+kind: Detach
+metadata:
+  name: {{ printf "%s-detach-%d" $s.roleName $i }}
+spec:
+  schedule: {{ $s.scheduleUntil | quote }}
+{{- end }}
+
