@@ -14,26 +14,69 @@
 
 
 
-{{- range $i, $s := .spec.schedules }}
----
-apiVersion: example.com/v1
-kind: Role
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
 metadata:
-  name: {{ $s.roleName }}
-spec: {}
----
-apiVersion: example.com/v1
-kind: Attach
-metadata:
-  name: {{ printf "%s-attach-%d" $s.roleName $i }}
+  name: xpolicyscheduler.aws.example.com
 spec:
-  schedule: {{ $s.scheduleFrom | quote }}
----
-apiVersion: example.com/v1
-kind: Detach
-metadata:
-  name: {{ printf "%s-detach-%d" $s.roleName $i }}
-spec:
-  schedule: {{ $s.scheduleUntil | quote }}
-{{- end }}
+  compositeTypeRef:
+    apiVersion: policyscheduler.example.com/v1alpha1
+    kind: XPolicyScheduler
+  mode: Pipeline
+  pipeline:
+  - step: environmentConfigs
+    functionRef:
+      name: function-environment-configs
+    input:
+      apiVersion: environmentconfigs.fn.crossplane.io/v1beta1
+      kind: Input
+      spec:
+        environmentConfigs:
+        - type: Reference
+          ref:
+            name: envconfig
+  - step: render-schedules
+    functionRef:
+      name: function-go-templating
+    input:
+      apiVersion: gotemplating.fn.crossplane.io/v1beta1
+      kind: GoTemplate
+      source: Inline
+      inline:
+        template: |-
+          {{- range $i, $s := .spec.schedules }}
+          ---
+          apiVersion: iam.aws.crossplane.io/v1beta1
+          kind: Role
+          metadata:
+            name: {{ $s.roleName }}
+          spec:
+            forProvider:
+              assumeRolePolicyDocument: |
+                {
+                  "Version": "2012-10-17",
+                  "Statement": [{
+                    "Effect": "Allow",
+                    "Principal": {"Service": "ec2.amazonaws.com"},
+                    "Action": "sts:AssumeRole"
+                  }]
+                }
+          ---
+          apiVersion: batch/v1
+          kind: CronJob
+          metadata:
+            name: {{ printf "%s-attach-%d" $s.roleName $i }}
+          spec:
+            schedule: {{ $s.scheduleFrom | quote }}
+          ---
+          apiVersion: batch/v1
+          kind: CronJob
+          metadata:
+            name: {{ printf "%s-detach-%d" $s.roleName $i }}
+          spec:
+            schedule: {{ $s.scheduleUntil | quote }}
+          {{- end }}
+  - step: automatically-detect-ready-composed-resources
+    functionRef:
+      name: function-auto-ready
 
